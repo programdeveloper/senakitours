@@ -1,0 +1,188 @@
+{%- extends "templates/web.html" -%}
+
+{% block title %}სენაკის ტურისტული რუკა — Senaki Tourist Map{% endblock %}
+
+{% block head_include %}
+<meta name="description" content="Interactive tourist map of Senaki Municipality, Georgia. Discover historical monuments, cultural sites, nature parks, hotels and restaurants.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="/assets/senaki_tours/css/tours.css">
+{% endblock %}
+
+{% block page_content %}
+<div class="tours-page-wrapper">
+
+<!-- Loading -->
+<div class="map-loading" id="map-loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">სენაკის ტურისტული რუკა იტვირთება...</div>
+</div>
+
+<!-- Navbar -->
+<nav class="tours-navbar" id="tours-navbar">
+  <a class="navbar-brand" href="/tours">
+    <div class="logo-icon">🏔️</div>
+    <div>
+      <div class="brand-text">სენაკი</div>
+      <div class="brand-sub">Tourist Guide</div>
+    </div>
+  </a>
+
+  <div class="nav-tabs-container">
+    <button class="nav-tab active" data-tab="map">🗺️ რუკა</button>
+    <button class="nav-tab" data-tab="discover">აღმოაჩინე</button>
+    <button class="nav-tab" data-tab="see">რა ვნახო</button>
+    <button class="nav-tab" data-tab="stay">განთავსება</button>
+    <button class="nav-tab" data-tab="eat">გასტრონომია</button>
+    <button class="nav-tab" data-tab="info">ინფორმაცია</button>
+  </div>
+
+  <div class="navbar-search">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="ძიება... / Search..." autocomplete="off">
+  </div>
+
+  <div class="lang-toggle">
+    <button class="lang-btn active" data-lang="ka">GE</button>
+    <button class="lang-btn" data-lang="en">EN</button>
+  </div>
+</nav>
+
+<!-- Search Results Dropdown -->
+<div class="search-results" id="search-results"></div>
+
+<!-- Filter Sidebar -->
+<div class="filter-sidebar" id="filter-sidebar">
+  <div class="filter-header">
+    <h3>🏷️ ფილტრი / Filter</h3>
+    <button class="filter-toggle-btn" id="filter-toggle" title="Close">✕</button>
+  </div>
+  <div class="filter-list" id="filter-list">
+    <!-- Rendered by JS -->
+  </div>
+</div>
+<button class="sidebar-open-btn" id="sidebar-open-btn" title="Open filters">☰</button>
+
+<!-- Map -->
+<div id="tours-map"></div>
+
+<!-- Detail Panel -->
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" id="detail-close-btn">✕</button>
+
+  <div class="detail-image-wrapper">
+    <img id="detail-img" src="" alt="Tourist Object">
+    <span class="detail-category-badge" id="detail-badge"></span>
+  </div>
+
+  <div class="detail-body">
+    <h2 class="detail-title" id="detail-title"></h2>
+    <p class="detail-title-ka" id="detail-title-sub"></p>
+
+    <div class="detail-meta">
+      <div class="detail-meta-item" id="detail-address">
+        <span class="meta-icon">📍</span>
+        <span class="meta-value"></span>
+      </div>
+      <div class="detail-meta-item" id="detail-phone">
+        <span class="meta-icon">📞</span>
+        <span class="meta-value"></span>
+      </div>
+      <div class="detail-meta-item" id="detail-hours">
+        <span class="meta-icon">🕐</span>
+        <span class="meta-value"></span>
+      </div>
+      <div class="detail-meta-item" id="detail-web">
+        <span class="meta-icon">🌐</span>
+        <span class="meta-value"></span>
+      </div>
+      <div class="detail-meta-item">
+        <span class="meta-icon">🧭</span>
+        <span class="meta-value" id="detail-coords"></span>
+      </div>
+    </div>
+
+    <div class="detail-actions">
+      <button class="detail-action-btn primary" id="detail-navigate">🧭 ნავიგაცია</button>
+      <button class="detail-action-btn" id="detail-gmaps">📍 Google Maps</button>
+    </div>
+
+    <div class="detail-description" id="detail-desc"></div>
+
+    <div class="detail-qr">
+      <img id="detail-qr-img" src="" alt="QR Code">
+      <p>QR კოდი — Google Maps</p>
+    </div>
+  </div>
+</div>
+
+<!-- Route Panel -->
+<div class="route-panel" id="route-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h3>🧭 მარშრუტი / Route</h3>
+    <button class="filter-toggle-btn" id="route-close-btn">✕</button>
+  </div>
+  <label style="color:var(--clr-text-muted);font-size:12px;display:block;margin-bottom:4px;">
+    საიდან / From:</label>
+  <select id="route-from"></select>
+  <label style="color:var(--clr-text-muted);font-size:12px;display:block;margin-bottom:4px;">
+    სადამდე / To:</label>
+  <select id="route-to"></select>
+  <button class="detail-action-btn primary" id="route-calc-btn" style="width:100%;margin-top:8px;">
+    📐 გამოთვლა / Calculate</button>
+  <div class="route-info" style="display:none;margin-top:12px;">
+    <div class="route-info-item">
+      <div class="value" id="route-distance">—</div>
+      <div class="label">მანძილი / Distance</div>
+    </div>
+    <div class="route-info-item">
+      <div class="value" id="route-duration">—</div>
+      <div class="label">დრო / Duration</div>
+    </div>
+  </div>
+</div>
+
+<!-- Map Controls -->
+<div class="map-controls">
+  <button class="map-ctrl-btn" id="btn-tile-toggle" title="Satellite / Street">🛰️</button>
+  <button class="map-ctrl-btn" id="btn-zoom-in" title="Zoom In">+</button>
+  <button class="map-ctrl-btn" id="btn-zoom-out" title="Zoom Out">−</button>
+  <button class="map-ctrl-btn" id="btn-center" title="Center on Senaki">🏠</button>
+  <button class="map-ctrl-btn" id="btn-my-location" title="My Location">📍</button>
+  <button class="map-ctrl-btn" id="btn-route" title="Route Planning">🧭</button>
+</div>
+
+<!-- Legend -->
+<div class="map-legend" id="map-legend">
+  <!-- Rendered by JS -->
+</div>
+
+</div>
+{% endblock %}
+
+{% block script %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+// Embed server-side data for initial render (avoids extra API call)
+window.__SENAKI_CATEGORIES = {{ categories | tojson }};
+window.__SENAKI_OBJECTS = {{ tourist_objects | tojson }};
+// Add tours-page class to body
+document.body.classList.add('tours-page');
+</script>
+<script src="/assets/senaki_tours/js/tours.js"></script>
+{% endblock %}
+
+{% block style %}
+<style>
+/* Hide Frappe default elements on this page */
+.web-footer, .page-header, .page-header-wrapper,
+footer, .navbar:not(.tours-navbar), .web-sidebar {
+  display: none !important;
+}
+.main-section { padding: 0 !important; margin: 0 !important; }
+.container { max-width: 100% !important; padding: 0 !important; }
+.page-content { padding: 0 !important; margin: 0 !important; }
+.web-content { margin: 0 !important; }
+</style>
+{% endblock %}

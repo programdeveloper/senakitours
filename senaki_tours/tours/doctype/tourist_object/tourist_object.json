@@ -1,0 +1,181 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "format:{title}-{####}",
+  "creation": "2026-04-24 09:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "title",
+    "title_ka",
+    "category",
+    "published",
+    "column_break_main",
+    "image",
+    "address",
+    "phone",
+    "website",
+    "working_hours",
+    "section_break_location",
+    "latitude",
+    "longitude",
+    "column_break_loc2",
+    "google_maps_url",
+    "section_break_description",
+    "description",
+    "column_break_desc2",
+    "description_ka",
+    "section_break_gallery",
+    "gallery"
+  ],
+  "fields": [
+    {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Title (English)",
+      "reqd": 1
+    },
+    {
+      "fieldname": "title_ka",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Title (Georgian)"
+    },
+    {
+      "fieldname": "category",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Category",
+      "options": "Tourist Category",
+      "reqd": 1
+    },
+    {
+      "default": "1",
+      "fieldname": "published",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Published"
+    },
+    {
+      "fieldname": "column_break_main",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "image",
+      "fieldtype": "Attach Image",
+      "label": "Main Image"
+    },
+    {
+      "fieldname": "address",
+      "fieldtype": "Data",
+      "label": "Address"
+    },
+    {
+      "fieldname": "phone",
+      "fieldtype": "Data",
+      "label": "Phone"
+    },
+    {
+      "fieldname": "website",
+      "fieldtype": "Data",
+      "label": "Website"
+    },
+    {
+      "fieldname": "working_hours",
+      "fieldtype": "Data",
+      "label": "Working Hours"
+    },
+    {
+      "fieldname": "section_break_location",
+      "fieldtype": "Section Break",
+      "label": "Location"
+    },
+    {
+      "fieldname": "latitude",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "Latitude",
+      "precision": "6",
+      "reqd": 1
+    },
+    {
+      "fieldname": "longitude",
+      "fieldtype": "Float",
+      "label": "Longitude",
+      "precision": "6",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_loc2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "google_maps_url",
+      "fieldtype": "Data",
+      "label": "Google Maps URL",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_description",
+      "fieldtype": "Section Break",
+      "label": "Description"
+    },
+    {
+      "fieldname": "description",
+      "fieldtype": "Text Editor",
+      "label": "Description (English)"
+    },
+    {
+      "fieldname": "column_break_desc2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "description_ka",
+      "fieldtype": "Text Editor",
+      "label": "Description (Georgian)"
+    },
+    {
+      "fieldname": "section_break_gallery",
+      "fieldtype": "Section Break",
+      "label": "Gallery"
+    },
+    {
+      "fieldname": "gallery",
+      "fieldtype": "Table",
+      "label": "Gallery Images",
+      "options": "Tourist Object Image"
+    }
+  ],
+  "image_field": "image",
+  "links": [],
+  "modified": "2026-04-24 09:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Tours",
+  "name": "Tourist Object",
+  "naming_rule": "Expression (old style)",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "Guest"
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "title_field": "title",
+  "track_changes": 1
+}
