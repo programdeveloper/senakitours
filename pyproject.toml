@@ -1,5 +1,5 @@
 [project]
-name = "senaki-tours"
+name = "senaki_tours"
 dynamic = ["version"]
 requires-python = ">=3.10"
 description = "Senaki Municipality Digital Tourist Guide"
