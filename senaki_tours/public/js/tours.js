@@ -5,17 +5,38 @@
   let map, markers = [], activeLayers = {}, allObjects = [], allCategories = [];
   let currentLang = "ka";
   let satelliteLayer, streetLayer, currentTile = "street";
-  let routeLine = null;
+  let routeLayers = [];   // array of active route polylines
+  let userLocMarker = null;
+  let userLocation = null; // {lat, lng} when GPS acquired
   let selectedObject = null;
+  let navRouteActive = false; // true when detail-panel nav route is shown
 
   /* ---- INIT ---- */
   function init() {
     initMap();
     loadData();
     bindEvents();
+    checkUrlParam();
     setTimeout(() => {
       document.querySelector(".map-loading")?.classList.add("hidden");
     }, 800);
+  }
+
+  /* ---- URL ?obj= param ---- */
+  function checkUrlParam() {
+    var params = new URLSearchParams(window.location.search);
+    var objName = params.get("obj");
+    if (objName) {
+      // Wait for data to load, then open
+      var tries = 0;
+      var interval = setInterval(function () {
+        tries++;
+        if (allObjects.length > 0 || tries > 20) {
+          clearInterval(interval);
+          if (objName) window.__senakiOpenDetail(objName);
+        }
+      }, 200);
+    }
   }
 
   /* ---- MAP SETUP ---- */
@@ -213,23 +234,26 @@
     document.getElementById("detail-coords").textContent =
       obj.latitude.toFixed(6) + ", " + obj.longitude.toFixed(6);
 
-    // Google Maps link
+    // Google Maps external link (secondary action)
     var gmapsBtn = document.getElementById("detail-gmaps");
     gmapsBtn.onclick = function () {
       window.open("https://www.google.com/maps?q=" + obj.latitude + "," + obj.longitude, "_blank");
     };
 
-    // QR
+    // QR — encodes local tourist guide URL so scanning opens the app
     var qrImg = document.getElementById("detail-qr-img");
-    var qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" +
-      encodeURIComponent("https://www.google.com/maps?q=" + obj.latitude + "," + obj.longitude);
-    qrImg.src = qrUrl;
+    var localUrl = window.location.origin + "/tours?obj=" + encodeURIComponent(obj.name);
+    qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" +
+      encodeURIComponent(localUrl);
+    var qrLabel = document.querySelector(".detail-qr p");
+    if (qrLabel) qrLabel.textContent = t("სკანირება — ობიექტის გახსნა", "Scan to open this location");
 
-    // Navigate to
+    // Navigate — in-app routing via OSRM
     var navBtn = document.getElementById("detail-navigate");
-    navBtn.onclick = function () {
-      window.open("https://www.google.com/maps/dir/?api=1&destination=" +
-        obj.latitude + "," + obj.longitude, "_blank");
+    console.log("Setting onclick for", obj.name);
+    navBtn.onclick = function () { 
+      console.log("Navigate clicked for", obj.name);
+      navigateToObject(obj); 
     };
 
     // Fly to marker
@@ -257,54 +281,209 @@
   function closeDetail() {
     document.getElementById("detail-panel").classList.remove("open");
     selectedObject = null;
+    clearRouteLayers();
+    navRouteActive = false;
   }
 
-  /* ---- ROUTE ---- */
+  /* ---- OSRM ROUTING ---- */
+  // Fetch a real road route from OSRM and return {coords, distance, duration}
+  function osrmRoute(profile, fromLat, fromLng, toLat, toLng) {
+    var url = "https://router.project-osrm.org/route/v1/" + profile + "/" +
+      fromLng + "," + fromLat + ";" + toLng + "," + toLat +
+      "?overview=full&geometries=geojson";
+    return fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      if (!data.routes || !data.routes[0]) throw new Error("No route");
+      var route = data.routes[0];
+      var coords = route.geometry.coordinates.map(function (c) { return [c[1], c[0]]; });
+      return { coords: coords, distance: route.distance / 1000, duration: route.duration };
+    });
+  }
+
+  function clearRouteLayers() {
+    routeLayers.forEach(function (l) { map.removeLayer(l); });
+    routeLayers = [];
+  }
+
+  // Draw a polyline, store it, return it
+  function drawSegment(coords, color, dashed) {
+    var opts = { color: color, weight: 5, opacity: 0.9 };
+    if (dashed) opts.dashArray = "12 8";
+    var poly = L.polyline(coords, opts).addTo(map);
+    routeLayers.push(poly);
+    return poly;
+  }
+
+  // Show route legend strip inside route panel or detail area
+  function showRouteLegend(hasDrive, hasWalk) {
+    var legend = document.getElementById("route-mode-legend");
+    if (!legend) return;
+    legend.innerHTML = "";
+    if (hasDrive) legend.innerHTML += '<span class="rleg-item"><span class="rleg-dot" style="background:#2196F3"></span>' + t("მანქანა","Drive") + '</span>';
+    if (hasWalk)  legend.innerHTML += '<span class="rleg-item"><span class="rleg-dot" style="background:#43A047"></span>' + t("ფეხით","Walk") + '</span>';
+    legend.style.display = (hasDrive || hasWalk) ? "flex" : "none";
+  }
+
+  // Update route info card
+  function updateRouteInfo(totalDist, driveSec, walkSec) {
+    var infoEl = document.querySelector(".route-info");
+    if (!infoEl) return;
+    document.getElementById("route-distance").textContent = totalDist.toFixed(1) + " კმ";
+    var driveEl = document.getElementById("route-drive-time");
+    var walkEl  = document.getElementById("route-walk-time");
+    if (driveEl) driveEl.textContent = driveSec > 0 ? Math.round(driveSec / 60) + " წთ" : "—";
+    if (walkEl)  walkEl.textContent  = walkSec  > 0 ? Math.round(walkSec  / 60) + " წთ" : "—";
+    infoEl.style.display = "flex";
+  }
+
+  // In-app navigate from detail panel (from GPS or last known loc to obj)
+  function navigateToObject(toObj) {
+    console.log("navigateToObject called", toObj);
+    clearRouteLayers();
+    if (navRouteActive) { navRouteActive = false; return; } // toggle off
+    navRouteActive = true;
+
+    function doRoute(fromLat, fromLng) {
+      var routeType = toObj.route_type || "drive";
+      var isMixed = routeType === "mixed" && toObj.walk_from_lat && toObj.walk_from_lng;
+      if (isMixed) {
+        // Segment 1: drive to trailhead
+        osrmRoute("driving", fromLat, fromLng, toObj.walk_from_lat, toObj.walk_from_lng)
+          .then(function (seg1) {
+            drawSegment(seg1.coords, "#2196F3", false);
+            // Segment 2: walk to destination
+            return osrmRoute("foot", toObj.walk_from_lat, toObj.walk_from_lng, toObj.latitude, toObj.longitude)
+              .then(function (seg2) {
+                drawSegment(seg2.coords, "#43A047", true);
+                var allCoords = seg1.coords.concat(seg2.coords);
+                map.fitBounds(L.latLngBounds(allCoords), { padding: [60, 60] });
+                updateRouteInfo(seg1.distance + seg2.distance, seg1.duration, seg2.duration);
+                showRouteLegend(true, true);
+              });
+          }).catch(function () { fallbackLine(fromLat, fromLng, toObj, "mixed"); });
+      } else {
+        var profile = routeType === "walk" ? "foot" : "driving";
+        var color   = routeType === "walk" ? "#43A047" : "#2196F3";
+        osrmRoute(profile, fromLat, fromLng, toObj.latitude, toObj.longitude)
+          .then(function (seg) {
+            drawSegment(seg.coords, color, routeType === "walk");
+            map.fitBounds(L.latLngBounds(seg.coords), { padding: [60, 60] });
+            updateRouteInfo(seg.distance, routeType === "walk" ? 0 : seg.duration, routeType === "walk" ? seg.duration : 0);
+            showRouteLegend(routeType !== "walk", routeType === "walk");
+          }).catch(function () { fallbackLine(fromLat, fromLng, toObj, routeType); });
+      }
+    }
+
+    if (userLocation) {
+      doRoute(userLocation.lat, userLocation.lng);
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        placeUserMarker(userLocation.lat, userLocation.lng);
+        doRoute(userLocation.lat, userLocation.lng);
+      }, function () {
+        alert(t("GPS მიუწვდომელია", "GPS unavailable. Please enable location."));
+        navRouteActive = false;
+      });
+    } else {
+      alert(t("GPS მიუწვდომელია", "GPS not supported by this browser."));
+      navRouteActive = false;
+    }
+  }
+
+  function fallbackLine(fromLat, fromLng, toObj, routeType) {
+    var color = routeType === "walk" ? "#43A047" : "#2196F3";
+    var poly = L.polyline([[fromLat, fromLng],[toObj.latitude, toObj.longitude]],
+      { color: color, weight: 4, dashArray: "10 6", opacity: 0.8 }).addTo(map);
+    routeLayers.push(poly);
+    map.fitBounds(poly.getBounds(), { padding: [60, 60] });
+  }
+
+  function placeUserMarker(lat, lng) {
+    if (userLocMarker) map.removeLayer(userLocMarker);
+    userLocMarker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: "custom-marker-wrapper",
+        html: '<div class="loc-pulse"></div>',
+        iconSize: [20, 20], iconAnchor: [10, 10]
+      })
+    }).addTo(map).bindPopup(t("თქვენი მდებარეობა", "Your Location"));
+  }
+
+  /* ---- ROUTE PANEL ---- */
   function populateRouteSelects() {
     var fromSel = document.getElementById("route-from");
     var toSel = document.getElementById("route-to");
     if (!fromSel || !toSel) return;
 
-    var defaultOpt = '<option value="">' + t("აირჩიეთ...", "Select...") + '</option>';
-    fromSel.innerHTML = defaultOpt;
-    toSel.innerHTML = defaultOpt;
+    // From: GPS first, then objects
+    fromSel.innerHTML = '<option value="_gps">📍 ' + t("ჩემი მდებარეობა", "My Location") + '</option>' +
+      '<option value="">' + t("აირჩიეთ...", "Select...") + '</option>';
+    toSel.innerHTML = '<option value="">' + t("აირჩიეთ...", "Select...") + '</option>';
 
     allObjects.forEach(function (obj) {
-      var optHtml = '<option value="' + obj.name + '">' +
-        t(obj.title_ka, obj.title) + '</option>';
-      fromSel.innerHTML += optHtml;
-      toSel.innerHTML += optHtml;
+      var opt = '<option value="' + obj.name + '">' + t(obj.title_ka, obj.title) + '</option>';
+      fromSel.innerHTML += opt;
+      toSel.innerHTML += opt;
     });
   }
 
   function calculateRoute() {
-    var fromName = document.getElementById("route-from").value;
-    var toName = document.getElementById("route-to").value;
-    if (!fromName || !toName) return;
+    var fromVal = document.getElementById("route-from").value;
+    var toName  = document.getElementById("route-to").value;
+    if (!toName) return;
 
-    var fromObj = allObjects.find(function (o) { return o.name === fromName; });
     var toObj = allObjects.find(function (o) { return o.name === toName; });
-    if (!fromObj || !toObj) return;
+    if (!toObj) return;
 
-    // Remove old route
-    if (routeLine) { map.removeLayer(routeLine); }
+    clearRouteLayers();
 
-    // Draw line
-    routeLine = L.polyline(
-      [[fromObj.latitude, fromObj.longitude], [toObj.latitude, toObj.longitude]],
-      { color: "#FF6F00", weight: 4, dashArray: "10 6", opacity: 0.9 }
-    ).addTo(map);
+    function runRoute(fromLat, fromLng) {
+      var routeType = toObj.route_type || "drive";
+      var isMixed = routeType === "mixed" && toObj.walk_from_lat && toObj.walk_from_lng;
 
-    // Fit bounds
-    map.fitBounds(routeLine.getBounds(), { padding: [60, 60] });
+      if (isMixed) {
+        osrmRoute("driving", fromLat, fromLng, toObj.walk_from_lat, toObj.walk_from_lng)
+          .then(function (seg1) {
+            drawSegment(seg1.coords, "#2196F3", false);
+            return osrmRoute("foot", toObj.walk_from_lat, toObj.walk_from_lng, toObj.latitude, toObj.longitude)
+              .then(function (seg2) {
+                drawSegment(seg2.coords, "#43A047", true);
+                var all = seg1.coords.concat(seg2.coords);
+                map.fitBounds(L.latLngBounds(all), { padding: [60, 60] });
+                updateRouteInfo(seg1.distance + seg2.distance, seg1.duration, seg2.duration);
+                showRouteLegend(true, true);
+              });
+          }).catch(function () { fallbackLine(fromLat, fromLng, toObj, "mixed"); });
+      } else {
+        var profile = routeType === "walk" ? "foot" : "driving";
+        var color   = routeType === "walk" ? "#43A047" : "#2196F3";
+        osrmRoute(profile, fromLat, fromLng, toObj.latitude, toObj.longitude)
+          .then(function (seg) {
+            drawSegment(seg.coords, color, routeType === "walk");
+            map.fitBounds(L.latLngBounds(seg.coords), { padding: [60, 60] });
+            updateRouteInfo(seg.distance, routeType === "walk" ? 0 : seg.duration, routeType === "walk" ? seg.duration : 0);
+            showRouteLegend(routeType !== "walk", routeType === "walk");
+          }).catch(function () { fallbackLine(fromLat, fromLng, toObj, routeType); });
+      }
+    }
 
-    // Estimate distance (Haversine)
-    var dist = haversine(fromObj.latitude, fromObj.longitude, toObj.latitude, toObj.longitude);
-    var driveMins = Math.round(dist / 0.7); // rough estimate
-
-    document.getElementById("route-distance").textContent = dist.toFixed(1) + " კმ";
-    document.getElementById("route-duration").textContent = driveMins + " წთ";
-    document.querySelector(".route-info").style.display = "flex";
+    if (fromVal === "_gps") {
+      if (userLocation) {
+        runRoute(userLocation.lat, userLocation.lng);
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          placeUserMarker(userLocation.lat, userLocation.lng);
+          map.flyTo([userLocation.lat, userLocation.lng], 13, { duration: 1 });
+          runRoute(userLocation.lat, userLocation.lng);
+        }, function () {
+          alert(t("GPS მიუწვდომელია", "GPS unavailable."));
+        });
+      }
+    } else if (fromVal) {
+      var fromObj = allObjects.find(function (o) { return o.name === fromVal; });
+      if (fromObj) runRoute(fromObj.latitude, fromObj.longitude);
+    }
   }
 
   function haversine(lat1, lon1, lat2, lon2) {
@@ -424,14 +603,9 @@
       locBtn.onclick = function () {
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(function (pos) {
-            map.flyTo([pos.coords.latitude, pos.coords.longitude], 15, { duration: 1.2 });
-            L.marker([pos.coords.latitude, pos.coords.longitude], {
-              icon: L.divIcon({
-                className: "custom-marker-wrapper",
-                html: '<div class="custom-marker" style="background:#2196F3"><span class="marker-inner">📍</span></div>',
-                iconSize: [36, 36], iconAnchor: [18, 36]
-              })
-            }).addTo(map).bindPopup(t("თქვენი მდებარეობა", "Your Location")).openPopup();
+            userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            map.flyTo([userLocation.lat, userLocation.lng], 15, { duration: 1.2 });
+            placeUserMarker(userLocation.lat, userLocation.lng);
           });
         }
       };
@@ -451,8 +625,10 @@
     if (routeCloseBtn && routePanel) {
       routeCloseBtn.onclick = function () {
         routePanel.classList.remove("open");
-        if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+        clearRouteLayers();
         document.querySelector(".route-info").style.display = "none";
+        var legend = document.getElementById("route-mode-legend");
+        if (legend) legend.style.display = "none";
       };
     }
 

@@ -28,7 +28,8 @@ def get_context(context):
             "description", "description_ka",
             "latitude", "longitude", "address",
             "image", "phone", "website",
-            "working_hours", "google_maps_url"
+            "working_hours", "google_maps_url",
+            "route_type", "walk_from_lat", "walk_from_lng"
         ],
         order_by="title asc"
     )

@@ -19,7 +19,8 @@ def get_tourist_objects(category=None):
             "description", "description_ka",
             "latitude", "longitude", "address",
             "image", "phone", "website",
-            "working_hours", "google_maps_url"
+            "working_hours", "google_maps_url",
+            "route_type", "walk_from_lat", "walk_from_lng"
         ],
         order_by="title asc"
     )
@@ -79,6 +80,9 @@ def get_object_detail(name):
         "website": obj.website,
         "working_hours": obj.working_hours,
         "google_maps_url": obj.google_maps_url,
+        "route_type": obj.route_type,
+        "walk_from_lat": obj.walk_from_lat,
+        "walk_from_lng": obj.walk_from_lng,
         "gallery": gallery,
     }
 

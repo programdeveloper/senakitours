@@ -21,6 +21,11 @@
     "longitude",
     "column_break_loc2",
     "google_maps_url",
+    "section_break_routing",
+    "route_type",
+    "column_break_routing2",
+    "walk_from_lat",
+    "walk_from_lng",
     "section_break_description",
     "description",
     "column_break_desc2",
@@ -115,6 +120,37 @@
       "fieldtype": "Data",
       "label": "Google Maps URL",
       "read_only": 1
+    },
+    {
+      "fieldname": "section_break_routing",
+      "fieldtype": "Section Break",
+      "label": "Routing"
+    },
+    {
+      "default": "drive",
+      "fieldname": "route_type",
+      "fieldtype": "Select",
+      "label": "Route Type",
+      "options": "drive\nwalk\nmixed",
+      "description": "Mixed: visitors drive to a trailhead then walk to the destination."
+    },
+    {
+      "fieldname": "column_break_routing2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "walk_from_lat",
+      "fieldtype": "Float",
+      "label": "Walk-From Latitude",
+      "precision": "6",
+      "description": "Latitude of the parking/trailhead point (mixed routes only)"
+    },
+    {
+      "fieldname": "walk_from_lng",
+      "fieldtype": "Float",
+      "label": "Walk-From Longitude",
+      "precision": "6",
+      "description": "Longitude of the parking/trailhead point (mixed routes only)"
     },
     {
       "fieldname": "section_break_description",

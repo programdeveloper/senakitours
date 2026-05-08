@@ -136,10 +136,15 @@
       <div class="label">მანძილი / Distance</div>
     </div>
     <div class="route-info-item">
-      <div class="value" id="route-duration">—</div>
-      <div class="label">დრო / Duration</div>
+      <div class="value" id="route-drive-time">—</div>
+      <div class="label">მანქანა / Drive</div>
+    </div>
+    <div class="route-info-item">
+      <div class="value" id="route-walk-time">—</div>
+      <div class="label">ფეხით / Walk</div>
     </div>
   </div>
+  <div id="route-mode-legend" class="route-mode-legend" style="display:none;margin-top:12px;"></div>
 </div>
 
 <!-- Map Controls -->
@@ -170,7 +175,7 @@ window.__SENAKI_OBJECTS = {{ tourist_objects | tojson }};
 // Add tours-page class to body
 document.body.classList.add('tours-page');
 </script>
-<script src="/assets/senaki_tours/js/tours.js"></script>
+<script src="/assets/senaki_tours/js/tours.js?v=1.1"></script>
 {% endblock %}
 
 {% block style %}

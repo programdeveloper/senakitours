@@ -634,7 +634,29 @@ body.tours-page {
   margin-top: 2px;
 }
 
-/* ===== SEARCH RESULTS ===== */
+.route-mode-legend {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 8px;
+  background: var(--clr-glass);
+  border-radius: var(--radius-sm);
+}
+
+.rleg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--clr-text);
+  font-weight: 500;
+}
+
+.rleg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
 .search-results {
   position: fixed;
   top: 60px;
@@ -710,6 +732,31 @@ body.tours-page {
 
 .custom-marker:hover {
   transform: rotate(-45deg) scale(1.2);
+}
+
+.loc-pulse {
+  width: 14px;
+  height: 14px;
+  background: #2196F3;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  position: relative;
+  box-shadow: 0 0 8px rgba(33, 150, 243, 0.6);
+}
+
+.loc-pulse::after {
+  content: "";
+  position: absolute;
+  top: -2px; left: -2px; right: -2px; bottom: -2px;
+  border: 2px solid #2196F3;
+  border-radius: 50%;
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
 }
 
 /* ===== POPUP STYLES ===== */
